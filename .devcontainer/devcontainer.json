@@ -1,0 +1,3 @@
+{
+	"postCreateCommand": "nvm install 18.10"
+}
