@@ -1,4 +1,5 @@
 @import "~mapbox-gl/dist/mapbox-gl.css";
+@import "~@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
 
 .marker {
     background-image: url('../src/assets/box-truck.png');
@@ -7,4 +8,8 @@
     height: 50px;
     border-radius: 50%;
     cursor: pointer;
+}
+
+div.mapboxgl-ctrl-top-left > div:nth-child(2) > div.suggestions-wrapper > ul {
+    transform: translateY(50px);
 }

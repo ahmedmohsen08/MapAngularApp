@@ -12,14 +12,15 @@ body {
 
 #instructions {
     position: absolute;
-    margin: 20px;
-    width: 25%;
+    margin: 10px;
+    width: 20%;
     top: 0;
-    bottom: 20%;
-    padding: 20px;
+    bottom: 25%;
+    padding: 10px;
     background-color: #fff;
     overflow-y: scroll;
     font-family: sans-serif;
+    right: 1%;
 }
 
 #current-speed {
@@ -29,6 +30,7 @@ body {
     padding: 20px;
     background-color: #fff;
     font-family: sans-serif;
-    top: 10%;
-    left: 50%;
+    top: 4%;
+    left: 40%;
 }
+/* #map > div.mapboxgl-control-container > div.mapboxgl-ctrl-top-left > div:nth-child(2) > div.suggestions-wrapper > ul */
