@@ -3,6 +3,7 @@ import * as mapboxgl from 'mapbox-gl';
 //import * as MapboxDirections from '@mapbox/mapbox-gl-directions';
 //declare let MapboxDirections: any;
 import * as MapboxGeocoder from '@mapbox/mapbox-gl-geocoder';
+import { environment } from 'src/environments/environment';
 
 @Component({
   selector: 'app-map',
@@ -22,12 +23,13 @@ export class MapComponent implements OnInit {
   timeouts: ReturnType<typeof setTimeout>[];
   startPoint: number[];
   endPoint: number[];
+  currentSpeed: any;
+  instructions: any;
   constructor() {
     this.numDeltas = 100;
     this.delay = 500; //milliseconds
     this.i = 0;
-    this.accessToken = 'pk.eyJ1IjoiYWhtZWRtb2hzZW4wOCIsImEiOiJjbGl1MzE5cDEwZW04M2ptOHlvd250cjdoIn0.DxhNH0Z2Qg1ARqOgx9rQqw';
-    //this.accessToken='sk.eyJ1IjoiYWhtZWRtb2hzZW4wOCIsImEiOiJjbGl1MzZ5ZHQwZXZ5M3BtOHRtZnRwYTN3In0.tlPAoEqV8oUKhhqn4V44zg';
+    this.accessToken = environment.mapbox.accessToken;
     this.timeouts = [];
     this.startPoint = [];
     this.endPoint = [];
@@ -218,8 +220,8 @@ export class MapComponent implements OnInit {
     this.addRoute(route,'route','#3887be');
 
     // get the sidebar and add the instructions
-    const instructions = document.getElementById('instructions')!;
-    const currentSpeed = document.getElementById('current-speed')!;
+    this.instructions = document.getElementById('instructions')! || {};
+    this.currentSpeed = document.getElementById('current-speed')! || {};
     const steps = data.legs[0].steps;
 
     let tripInstructions = '';
@@ -227,7 +229,7 @@ export class MapComponent implements OnInit {
       tripInstructions += `<li>${step.maneuver.instruction}</li>`;
       //this.transition(step.maneuver.location,position)
     }
-    instructions.innerHTML = `<p><strong>Trip duration: ${Math.floor(
+    this.instructions.innerHTML = `<p><strong>Trip duration: ${Math.floor(
       data.duration / 60
     )} min 🚚 </strong></p><ol>${tripInstructions}</ol>`;
 
@@ -244,7 +246,7 @@ export class MapComponent implements OnInit {
       const point = points[i];
       var timeout = setTimeout(() => {
         this.marker.setLngLat([point[0], point[1]]).addTo(this.map);
-        currentSpeed.innerHTML = `${Math.floor(speed[i-1] * 3.6)} km/h`;
+        this.currentSpeed.innerHTML = `${Math.floor(speed[i-1] * 3.6)} km/h`;
       }, this.delay * i);
       this.timeouts.push(timeout);
     }
