@@ -14,7 +14,7 @@ export class MapComponent implements OnInit {
   map!: mapboxgl.Map;
   //start = [-122.662323, 45.523751];
   i: number;
-  delay: number;
+  //delay: number;
   numDeltas: number;
   deltaLat!: number;
   deltaLng!: number;
@@ -25,14 +25,17 @@ export class MapComponent implements OnInit {
   endPoint: number[];
   currentSpeed: any;
   instructions: any;
+  popup!: mapboxgl.Popup;
+  animationReferences!: number[];
   constructor() {
     this.numDeltas = 100;
-    this.delay = 500; //milliseconds
+    //this.delay = 50; //milliseconds
     this.i = 0;
     this.accessToken = environment.mapbox.accessToken;
     this.timeouts = [];
     this.startPoint = [];
     this.endPoint = [];
+    this.animationReferences = [];
   }
 
   ngOnInit() {
@@ -45,7 +48,7 @@ export class MapComponent implements OnInit {
       zoom: 12, // starting zoom
     });
 
-    this.map.addControl(new mapboxgl.NavigationControl({visualizePitch: true}), 'top-left');
+    this.map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'top-left');
 
     var mapBoxGeocoder1 = new MapboxGeocoder({
       accessToken: this.accessToken,
@@ -75,20 +78,20 @@ export class MapComponent implements OnInit {
 
     let geolocate = new mapboxgl.GeolocateControl({
 
-      positionOptions:{
-  
+      positionOptions: {
+
         enableHighAccuracy: true
-  
+
       },
-  
+
       trackUserLocation: true,
-  
-      showUserHeading:true
-  
+
+      showUserHeading: true
+
     });
 
     geolocate.on('geolocate', (data: any) => {
-      console.log(Object.prototype.toString.call(data)+ ' '+data.coords.longitude+' '+data.coords.latitude);
+      console.log(Object.prototype.toString.call(data) + ' ' + data.coords.longitude + ' ' + data.coords.latitude);
       //mapBoxGeocoder1.set
     });
 
@@ -203,11 +206,7 @@ export class MapComponent implements OnInit {
 
   // create a function to make a directions request
   async getRoute(start: number[], end: number[]) {
-    //remove marker if exists
-    if (this.marker != undefined)
-      this.marker.remove();
-
-    this.clearTimeouts();
+    this.mapClear();
 
     // make a directions request using driving profile
     const query = await fetch(
@@ -217,11 +216,11 @@ export class MapComponent implements OnInit {
     const json = await query.json();
     const data = json.routes[0];
     const route = data.geometry.coordinates;
-    this.addRoute(route,'route','#3887be');
+    this.addRoute(route, 'route', '#3887be');
 
     // get the sidebar and add the instructions
     this.instructions = document.getElementById('instructions')! || {};
-    this.currentSpeed = document.getElementById('current-speed')! || {};
+    //this.currentSpeed = document.getElementById('current-speed')! || {};
     const steps = data.legs[0].steps;
 
     let tripInstructions = '';
@@ -238,44 +237,114 @@ export class MapComponent implements OnInit {
     const distance = data.legs[0].annotation.distance;
     const speed = data.legs[0].annotation.speed;
     const duration = data.legs[0].annotation.duration;
-    const lngLatPosition: mapboxgl.LngLatLike = [points[0][0], points[0][1]];
+
+    this.settingMarker(points[0]);
+    // let speedFactor = 1;
+    // for (let i = 1; i < points.length; i++) {
+    //   const point = points[i];
+    //   speedFactor = this.calculateSpeedFactor(speed[i - 1]);
+    //   var timeoutTime = this.delay * i * speedFactor;
+    //   var timeout = setTimeout(() => {
+    //     this.marker.setLngLat([point[0], point[1]]).addTo(this.map);
+    //     //this.currentSpeed.innerHTML = `${Math.floor(speed[i-1] * 3.6)} km/h`;
+    //     this.popup.setHTML(`${Math.floor(speed[i - 1] * 3.6)} km/h`);
+    //   }, timeoutTime);
+    //   this.timeouts.push(timeout);
+    // }
+    let i = 1;
+    var animationReference = requestAnimationFrame(() => {
+      this.animateMarker(i, points, speed)
+    });
+    this.animationReferences.push(animationReference);
+  }
+
+  animateMarker(i: number, points: any, speed: any) {
+    const point = points[i];
+    var timeoutTime = this.calculateDelay(speed[i]);
+    var timeout = setTimeout(() => {
+      this.marker.setLngLat([point[0], point[1]]).addTo(this.map);
+      this.popup.setHTML(`${Math.floor(speed[i - 1] * 3.6)} km/h`);
+      i++;
+
+      var animationReference = requestAnimationFrame(() => {
+        this.animateMarker(i, points, speed)
+      });
+      this.animationReferences.push(animationReference);
+    }, timeoutTime);
+    this.timeouts.push(timeout);
+  }
+
+  settingMarker(point: number[]) {
+    const lngLatPosition: mapboxgl.LngLatLike = [point[0], point[1]];
     const el = document.createElement('div');
     el.className = 'marker';
-    this.marker = new mapboxgl.Marker(el).setLngLat(lngLatPosition).addTo(this.map);
-    for (let i = 1; i < points.length; i++) {
-      const point = points[i];
-      var timeout = setTimeout(() => {
-        this.marker.setLngLat([point[0], point[1]]).addTo(this.map);
-        this.currentSpeed.innerHTML = `${Math.floor(speed[i-1] * 3.6)} km/h`;
-      }, this.delay * i);
-      this.timeouts.push(timeout);
+    let popupOptions = {
+      closeButton: false,
+      closeOnClick: false,
+      offset: 25,
+      focusAfterOpen: false
+    }
+    this.popup = new mapboxgl.Popup(popupOptions).setText(
+      '0 km/h'
+    );
+    this.marker = new mapboxgl.Marker(el).setLngLat(lngLatPosition).setPopup(this.popup).addTo(this.map);
+    this.marker.togglePopup();
+  }
+
+  mapClear() {
+    //remove marker if exists
+    if (this.marker != undefined)
+      this.marker.remove();
+
+    //clear timeouts and animation reference arrays
+    this.clearAnimations();
+
+    //remove route from map
+    if (this.map.getSource('route')) {
+      this.map.removeLayer('route');
+      this.map.removeSource('route');
     }
   }
 
-  transition(result: number[], position: number[]) {
-    this.i = 0;
-    this.deltaLat = (result[0] - position[0]) / this.numDeltas;
-    this.deltaLng = (result[1] - position[1]) / this.numDeltas;
-    this.moveMarker(position);
+  calculateDelay(speed: number): number {
+    if (speed * 3.6 >= 60)
+      return 50;
+    // if(speed < 70 && speed > 50)
+    //   return 0.;
+    if (speed * 3.6 < 60)
+      return 100;
+
+    return 100;
   }
 
-  moveMarker(position: number[]) {
-    position[0] += this.deltaLat;
-    position[1] += this.deltaLng;
-    //var latlng = new google.maps.LatLng(position[0], position[1]);
-    // marker.setTitle("Latitude:" + position[0] + " | Longitude:" + position[1]);
-    // marker.setPosition(latlng);
-    const lngLatPosition: mapboxgl.LngLatLike = [position[0], position[1]];
-    const marker1 = new mapboxgl.Marker().setLngLat(lngLatPosition).addTo(this.map);
-    if (this.i != this.numDeltas) {
-      this.i++;
-      setTimeout(this.moveMarker, this.delay);
-    }
-  }
+  // transition(result: number[], position: number[]) {
+  //   this.i = 0;
+  //   this.deltaLat = (result[0] - position[0]) / this.numDeltas;
+  //   this.deltaLng = (result[1] - position[1]) / this.numDeltas;
+  //   this.moveMarker(position);
+  // }
 
-  clearTimeouts() {
+  // moveMarker(position: number[]) {
+  //   position[0] += this.deltaLat;
+  //   position[1] += this.deltaLng;
+  //   //var latlng = new google.maps.LatLng(position[0], position[1]);
+  //   // marker.setTitle("Latitude:" + position[0] + " | Longitude:" + position[1]);
+  //   // marker.setPosition(latlng);
+  //   const lngLatPosition: mapboxgl.LngLatLike = [position[0], position[1]];
+  //   const marker1 = new mapboxgl.Marker().setLngLat(lngLatPosition).addTo(this.map);
+  //   if (this.i != this.numDeltas) {
+  //     this.i++;
+  //     setTimeout(this.moveMarker, this.delay);
+  //   }
+  // }
+
+  clearAnimations() {
     for (const timeout of this.timeouts) {
       clearTimeout(timeout);
+    }
+
+    for (const animationReference of this.animationReferences) {
+      cancelAnimationFrame(animationReference);
     }
   }
 
@@ -292,36 +361,36 @@ export class MapComponent implements OnInit {
   //   }
   // }
 
-  async getMatch(coordinates: number[][]) {
-    const newCoords = coordinates.join(';');
+  // async getMatch(coordinates: number[][]) {
+  //   const newCoords = coordinates.join(';');
 
-    // Create the query
-    const query = await fetch(
-      `https://api.mapbox.com/matching/v5/mapbox/driving/${newCoords}?geometries=geojson&steps=true&access_token=${this.accessToken}`,
-      { method: 'GET' }
-    );
-    // const query = await fetch(`https://api.mapbox.com/matching/v5/mapbox/driving?geometries=geojson&steps=true&access_token=${this.accessToken}`, {
-    // method: 'POST',
-    // body: "coordinates="+newCoords,
-    // headers: {
-    //   'Content-type': 'application/x-www-form-urlencoded',
-    // }
-    // });
-    const response = await query.json();
-    // Handle errors
-    if (response.code !== 'Ok') {
-      alert(
-        `${response.code} - ${response.message}.\n\nFor more information: https://docs.mapbox.com/api/navigation/map-matching/#map-matching-api-errors`
-      );
-      return;
-    }
-    // Get the coordinates from the response
-    const coords = response.matchings[0].geometry.coordinates;
-    console.log(coords);
-    //this.addRoute(coords,'route2','#03AA46');
-    //this.addRoute(coords,'route','#3887be');
-    this.addRoute(coords, 'route2', '#03AA46');
-  }
+  //   // Create the query
+  //   const query = await fetch(
+  //     `https://api.mapbox.com/matching/v5/mapbox/driving/${newCoords}?geometries=geojson&steps=true&access_token=${this.accessToken}`,
+  //     { method: 'GET' }
+  //   );
+  //   // const query = await fetch(`https://api.mapbox.com/matching/v5/mapbox/driving?geometries=geojson&steps=true&access_token=${this.accessToken}`, {
+  //   // method: 'POST',
+  //   // body: "coordinates="+newCoords,
+  //   // headers: {
+  //   //   'Content-type': 'application/x-www-form-urlencoded',
+  //   // }
+  //   // });
+  //   const response = await query.json();
+  //   // Handle errors
+  //   if (response.code !== 'Ok') {
+  //     alert(
+  //       `${response.code} - ${response.message}.\n\nFor more information: https://docs.mapbox.com/api/navigation/map-matching/#map-matching-api-errors`
+  //     );
+  //     return;
+  //   }
+  //   // Get the coordinates from the response
+  //   const coords = response.matchings[0].geometry.coordinates;
+  //   console.log(coords);
+  //   //this.addRoute(coords,'route2','#03AA46');
+  //   //this.addRoute(coords,'route','#3887be');
+  //   this.addRoute(coords, 'route2', '#03AA46');
+  // }
 
   // Draw the Map Matching route as a new layer on the map
   addRoute(coords: any, routeID: string, routeColor: string) {

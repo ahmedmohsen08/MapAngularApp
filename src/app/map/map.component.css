@@ -23,7 +23,7 @@ body {
     right: 1%;
 }
 
-#current-speed {
+/* #current-speed {
     position: absolute;
     margin: 20px;
     width: 10%;
@@ -32,5 +32,4 @@ body {
     font-family: sans-serif;
     top: 4%;
     left: 40%;
-}
-/* #map > div.mapboxgl-control-container > div.mapboxgl-ctrl-top-left > div:nth-child(2) > div.suggestions-wrapper > ul */
+} */
