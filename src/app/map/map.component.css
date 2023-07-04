@@ -15,10 +15,10 @@ body {
     margin: 10px;
     width: 20%;
     top: 0;
-    bottom: 25%;
+    bottom: 75%;
     padding: 10px;
     background-color: #fff;
-    overflow-y: scroll;
+    /* overflow-y: scroll; */
     font-family: sans-serif;
     right: 1%;
 }

@@ -24,9 +24,10 @@ export class MapComponent implements OnInit {
   startPoint: number[];
   endPoint: number[];
   currentSpeed: any;
-  instructions: any;
+  instructions!: HTMLElement;
   popup!: mapboxgl.Popup;
   animationReferences!: number[];
+  recommendationCounter: number;
   constructor() {
     this.numDeltas = 100;
     //this.delay = 50; //milliseconds
@@ -36,6 +37,7 @@ export class MapComponent implements OnInit {
     this.startPoint = [];
     this.endPoint = [];
     this.animationReferences = [];
+    this.recommendationCounter = 0;
   }
 
   ngOnInit() {
@@ -210,7 +212,7 @@ export class MapComponent implements OnInit {
 
     // make a directions request using driving profile
     const query = await fetch(
-      `https://api.mapbox.com/directions/v5/mapbox/driving/${start[0]},${start[1]};${end[0]},${end[1]}?steps=true&geometries=geojson&annotations=distance,speed,duration&overview=full&access_token=${this.accessToken}`,
+      `https://api.mapbox.com/directions/v5/mapbox/driving/${start[0]},${start[1]};${end[0]},${end[1]}?steps=true&geometries=geojson&annotations=distance,speed,duration&overview=full&continue_straight=false&notifications=none&roundabout_exits=false&access_token=${this.accessToken}`,
       { method: 'GET' }
     );
     const json = await query.json();
@@ -219,18 +221,24 @@ export class MapComponent implements OnInit {
     this.addRoute(route, 'route', '#3887be');
 
     // get the sidebar and add the instructions
-    this.instructions = document.getElementById('instructions')! || {};
+    //this.instructions = document.getElementById('instructions')! || {};
     //this.currentSpeed = document.getElementById('current-speed')! || {};
     const steps = data.legs[0].steps;
 
-    let tripInstructions = '';
-    for (const step of steps) {
-      tripInstructions += `<li>${step.maneuver.instruction}</li>`;
-      //this.transition(step.maneuver.location,position)
+    //let tripInstructions = '';
+    // for (const step of steps) {
+    //   tripInstructions += `<li>${step.maneuver.instruction}</li>`;
+    //   //this.transition(step.maneuver.location,position)
+    // }
+    // this.instructions.innerHTML = `<p><strong>Trip duration: ${Math.floor(
+    //   data.duration / 60
+    // )} min 🚚 </strong></p><ol>${tripInstructions}</ol>`;
+
+    const mySet1 = new Set();
+    for (let step of steps) {
+      mySet1.add(step.maneuver.type)
     }
-    this.instructions.innerHTML = `<p><strong>Trip duration: ${Math.floor(
-      data.duration / 60
-    )} min 🚚 </strong></p><ol>${tripInstructions}</ol>`;
+    console.log(mySet1)
 
     const points = data.geometry.coordinates;
     //this.getMatch(points);
@@ -239,6 +247,7 @@ export class MapComponent implements OnInit {
     const duration = data.legs[0].annotation.duration;
 
     this.settingMarker(points[0]);
+    this.map.zoomIn();
     // let speedFactor = 1;
     // for (let i = 1; i < points.length; i++) {
     //   const point = points[i];
@@ -253,25 +262,75 @@ export class MapComponent implements OnInit {
     // }
     let i = 1;
     var animationReference = requestAnimationFrame(() => {
-      this.animateMarker(i, points, speed)
+      this.animateMarker(i, points, speed, steps)
     });
     this.animationReferences.push(animationReference);
   }
 
-  animateMarker(i: number, points: any, speed: any) {
+  recommendationSystem(point: number[], pointAhead: number[], instruction: string, type: string, modifier: string, speed: number): string {
+    if (type === 'end of road' || type === 'turn')
+      return `slowing down..., about to ${type} ${modifier}`;
+
+    if (modifier === 'uturn')
+      return `slowing down..., about to ${modifier}`;
+
+    if (speed > 27)
+      return 'reaching max speed';
+
+    return '';
+  }
+
+  animateMarker(i: number, points: number[][], speed: number[], steps: any) {
+    this.instructions = document.getElementById('instructions')! || {};
     const point = points[i];
-    var timeoutTime = this.calculateDelay(speed[i]);
-    var timeout = setTimeout(() => {
+    const pointAhead = points[i + 5];
+    let timeoutTime = this.calculateDelay(speed[i]);
+
+
+    if (this.recommendationCounter != 0 && this.recommendationCounter < 30)
+      this.recommendationCounter++;
+    if (this.recommendationCounter == 5) {
+      this.instructions.innerHTML = '';
+      this.recommendationCounter = 0;
+    }
+
+    let timeout = setTimeout(() => {
       this.marker.setLngLat([point[0], point[1]]).addTo(this.map);
+      this.map.flyTo({ center: [point[0], point[1]] });
       this.popup.setHTML(`${Math.floor(speed[i - 1] * 3.6)} km/h`);
+      let stepIndex = this.searchLocation(steps, pointAhead);
+      if (stepIndex != -1) {
+        const instruction = steps[stepIndex].maneuver.instruction;
+        const instructionType = steps[stepIndex].maneuver.type;
+        const instructionModifier = steps[stepIndex].maneuver.modifier;
+        const recommendation = this.recommendationSystem(point, pointAhead, instruction, instructionType, instructionModifier, speed[i - 1]);
+        this.instructions.innerHTML = recommendation;
+        if (recommendation != '') {
+          this.recommendationCounter=0;
+          this.recommendationCounter++;
+        }
+        console.log(`index: ${stepIndex}, point index: ${i}, instruction: ${steps[stepIndex].maneuver.instruction}`)
+      }
+
       i++;
 
-      var animationReference = requestAnimationFrame(() => {
-        this.animateMarker(i, points, speed)
+      let animationReference = requestAnimationFrame(() => {
+        this.animateMarker(i, points, speed, steps)
       });
       this.animationReferences.push(animationReference);
     }, timeoutTime);
     this.timeouts.push(timeout);
+  }
+
+  searchLocation(steps: any, points: number[]): number {
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      const locationMatches = points.every(point => step.maneuver.location.includes(point));
+      if (locationMatches) {
+        return i; // Location exists
+      }
+    }
+    return -1; // Location does not exist
   }
 
   settingMarker(point: number[]) {
@@ -308,13 +367,13 @@ export class MapComponent implements OnInit {
 
   calculateDelay(speed: number): number {
     if (speed * 3.6 >= 60)
-      return 50;
+      return 60;
     // if(speed < 70 && speed > 50)
     //   return 0.;
     if (speed * 3.6 < 60)
-      return 100;
+      return 120;
 
-    return 100;
+    return 120;
   }
 
   // transition(result: number[], position: number[]) {
