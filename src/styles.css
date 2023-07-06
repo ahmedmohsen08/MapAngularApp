@@ -13,3 +13,28 @@
 div.mapboxgl-ctrl-top-left > div:nth-child(2) > div.suggestions-wrapper > ul {
     transform: translateY(50px);
 }
+
+.direction-guide {
+    display: flex;
+    align-items: center;
+  }
+
+  .direction-guide-text {
+    font-weight: bold;
+    margin-left: 5px;
+  }
+
+  .direction-guide-icon {
+    font-size: 18px;
+    color: #0d7819; /* Replace with your desired color */
+  }
+
+  .centered-speed {
+    text-align: center;
+  }
+  
+  .colored-speed {
+    font-weight: bold;
+    color: #9b4771; /* Replace with your desired color */
+  }
+  

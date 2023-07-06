@@ -28,6 +28,9 @@ export class MapComponent implements OnInit {
   popup!: mapboxgl.Popup;
   animationReferences!: number[];
   recommendationCounter: number;
+  currentStepIndex = 0;
+  currentStepGeometryIndex = 0;
+
   constructor() {
     this.numDeltas = 100;
     //this.delay = 50; //milliseconds
@@ -46,7 +49,7 @@ export class MapComponent implements OnInit {
       accessToken: this.accessToken,
       container: 'map', // container ID
       style: 'mapbox://styles/mapbox/streets-v12', // style URL
-      center: [-122.662323, 45.523751], // starting position [lng, lat]
+      center: [31.233334, 30.033333], // starting position [lng, lat]
       zoom: 12, // starting zoom
     });
 
@@ -213,17 +216,42 @@ export class MapComponent implements OnInit {
     // make a directions request using driving profile
     const query = await fetch(
       `https://api.mapbox.com/directions/v5/mapbox/driving/${start[0]},${start[1]};${end[0]},${end[1]}?steps=true&geometries=geojson&annotations=distance,speed,duration&overview=full&continue_straight=false&notifications=none&roundabout_exits=false&access_token=${this.accessToken}`,
-      { method: 'GET' }
-    );
-    const json = await query.json();
-    const data = json.routes[0];
-    const route = data.geometry.coordinates;
-    this.addRoute(route, 'route', '#3887be');
+      { method: 'GET' })
+      .then(response => response.json())
+      .then(data => {
+        data  = data.routes[0];
+        const route = data.geometry.coordinates;
+        const instructions = data.legs[0].steps.map((step: any) => step.maneuver.instruction);
+        const speed = data.legs[0].annotation.speed;
 
+        this.addRoute(route, 'route', '#3887be');
+        const steps = data.legs[0].steps;
+        const mySet1 = new Set();
+        for (let step of steps) {
+          mySet1.add(step.maneuver.type)
+        }
+        console.log(mySet1)
+
+        const points = data.geometry.coordinates;
+        //this.getMatch(points);
+        const distance = data.legs[0].annotation.distance;
+        const duration = data.legs[0].annotation.duration;
+
+        this.settingMarker(points[0]);
+        this.map.zoomIn();
+
+        let i = 1;
+        var animationReference = requestAnimationFrame(() => {
+          // this.animateMarker(i, points, speed, steps)
+          this.animateMarker2(steps, speed, i)
+        });
+        this.animationReferences.push(animationReference);
+      });
+
+  
     // get the sidebar and add the instructions
     //this.instructions = document.getElementById('instructions')! || {};
     //this.currentSpeed = document.getElementById('current-speed')! || {};
-    const steps = data.legs[0].steps;
 
     //let tripInstructions = '';
     // for (const step of steps) {
@@ -234,20 +262,8 @@ export class MapComponent implements OnInit {
     //   data.duration / 60
     // )} min 🚚 </strong></p><ol>${tripInstructions}</ol>`;
 
-    const mySet1 = new Set();
-    for (let step of steps) {
-      mySet1.add(step.maneuver.type)
-    }
-    console.log(mySet1)
-
-    const points = data.geometry.coordinates;
     //this.getMatch(points);
-    const distance = data.legs[0].annotation.distance;
-    const speed = data.legs[0].annotation.speed;
-    const duration = data.legs[0].annotation.duration;
 
-    this.settingMarker(points[0]);
-    this.map.zoomIn();
     // let speedFactor = 1;
     // for (let i = 1; i < points.length; i++) {
     //   const point = points[i];
@@ -259,51 +275,96 @@ export class MapComponent implements OnInit {
     //     this.popup.setHTML(`${Math.floor(speed[i - 1] * 3.6)} km/h`);
     //   }, timeoutTime);
     //   this.timeouts.push(timeout);
-    // }
-    let i = 1;
-    var animationReference = requestAnimationFrame(() => {
-      this.animateMarker(i, points, speed, steps)
-    });
-    this.animationReferences.push(animationReference);
+    // }  
   }
 
-  recommendationSystem(point: number[], pointAhead: number[], instruction: string, type: string, modifier: string, speed: number): string {
-    if (type === 'end of road' || type === 'turn')
-      return `slowing down..., about to ${type} ${modifier}`;
 
-    if (modifier === 'uturn')
-      return `slowing down..., about to ${modifier}`;
+  recommendationSystem(step: any, averagePreviousSpeed: number, averageCurrentSpeed: number): string {
+    const instruction = step.maneuver.instruction;
+    const instructionType = step.maneuver.type;
+    const instructionModifier = step.maneuver.modifier;
+    
+    if (averagePreviousSpeed > averageCurrentSpeed)
+      return `Slow speed down ..., ${instruction}`;
 
-    if (speed > 27)
-      return 'reaching max speed';
+    if (averagePreviousSpeed < averageCurrentSpeed)
+      return `Speed  up ..., ${instruction}`;
 
-    return '';
+    return instruction;
   }
 
-  animateMarker(i: number, points: number[][], speed: number[], steps: any) {
+  animateMarker(currentPointIndex: number, points: number[][], speed: number[], steps: any) {
     this.instructions = document.getElementById('instructions')! || {};
-    const point = points[i];
-    const pointAhead = points[i + 5];
-    let timeoutTime = this.calculateDelay(speed[i]);
+    const currentPos = points[currentPointIndex];
+    const pointAhead = points[currentPointIndex + 5];
+    // let timeoutTime = this.calculateDelay(speed[i]);
+    let timeoutTime = 1000 / speed[currentPointIndex] * 3.6
+    
+    if(currentPos) {
+      let timeout = setTimeout(() => {
+        const points = steps[this.currentStepIndex]?.geometry.coordinates;
+        const drivingDir = steps[this.currentStepIndex]?.maneuver.modifier;
 
+          this.marker.setLngLat(points[currentPointIndex]).addTo(this.map);
+          this.map.flyTo({ center: [currentPos[0], currentPos[1]] ,   speed: 0.8 });
+          currentPointIndex++;
 
-    if (this.recommendationCounter != 0 && this.recommendationCounter < 30)
-      this.recommendationCounter++;
-    if (this.recommendationCounter == 5) {
-      this.instructions.innerHTML = '';
-      this.recommendationCounter = 0;
-    }
+          if (currentPointIndex === points.length) {
+            this.currentStepIndex++;
+            currentPointIndex = 0;
+          }
 
-    let timeout = setTimeout(() => {
-      this.marker.setLngLat([point[0], point[1]]).addTo(this.map);
-      this.map.flyTo({ center: [point[0], point[1]] });
-      this.popup.setHTML(`${Math.floor(speed[i - 1] * 3.6)} km/h`);
+          const durationInHours = (steps[this.currentStepIndex]?.duration / 3600) | 0;
+          const distanceInKilometers = (steps[this.currentStepIndex]?.distance / 1000) | 0;
+          const durationInHours_ = (steps[this.currentStepIndex - 1]?.duration / 3600) | 0;
+          const distanceInKilometers_ = (steps[this.currentStepIndex - 1]?.distance / 1000) | 0;
+
+          const averageCurrentSpeed = (distanceInKilometers / durationInHours) | 0;
+          const averagePreviousSpeed = (distanceInKilometers_ / durationInHours_) | 0;
+
+          const recommendation = this.recommendationSystem(steps[this.currentStepIndex ], averagePreviousSpeed, averageCurrentSpeed);        
+
+          // this.popup.setHTML(`</div> <div class="centered-speed colored-speed">${averageCurrentSpeed.toFixed(2)} km/h </div>`);
+
+          if (this.currentStepIndex < steps.length) {
+            if (currentPointIndex === 0) {
+              const speedLimit = steps[this.currentStepIndex].speed_limit;
+              this.popup.setHTML(`<div><span class="direction-guide-text">${recommendation}</span>  <i class="direction-guide-icon fas fa-arrow-${drivingDir}"></i> </div> <div class="centered-speed colored-speed">${speedLimit.toFixed(2)} km/h </div>`);
+            } 
+          }
+
+/*
+        this.marker.setLngLat([currentPos[0], currentPos[1]]).addTo(this.map);
+        this.map.flyTo({ center: [currentPos[0], currentPos[1]] ,   speed: 0.8 });
+  
+        const drivingDir = steps[this.currentStepIndex].maneuver.modifier;
+        const recommendation = this.recommendationSystem(steps[this.currentStepIndex ], speed[currentPointIndex - 1] * 3.6);        
+  
+        if (this.currentStepIndex != 0 && this.currentStepIndex < 30)
+          this.currentStepIndex ++;
+        if (this.currentStepIndex == 5) {
+          this.popup.setHTML(`<div class="centered-speed colored-speed">${Math.floor(speed[currentPointIndex - 1] * 3.6)} km/h </div>`);
+          this.currentStepIndex = 0;
+        }
+
+        if (this.searchLocation(steps, pointAhead) != -1) {
+          this.popup.setHTML(`<div><span class="direction-guide-text">${recommendation}</span>  <i class="direction-guide-icon fas fa-arrow-${drivingDir}"></i> </div> <div class="centered-speed colored-speed">${Math.floor(speed[currentPointIndex - 1] * 3.6)} km/h </div>`);
+          if (recommendation != '') {
+            this.currentStepIndex = 0;
+            this.currentStepIndex ++;
+          }
+
+        } else {
+          this.popup.setHTML(`<div class="centered-speed colored-speed">${Math.floor(speed[currentPointIndex - 1] * 3.6)} km/h </div>`);
+        }
+*/
+      /*
       let stepIndex = this.searchLocation(steps, pointAhead);
       if (stepIndex != -1) {
         const instruction = steps[stepIndex].maneuver.instruction;
         const instructionType = steps[stepIndex].maneuver.type;
         const instructionModifier = steps[stepIndex].maneuver.modifier;
-        const recommendation = this.recommendationSystem(point, pointAhead, instruction, instructionType, instructionModifier, speed[i - 1]);
+        const recommendation = this.recommendationSystem(point, pointAhead, instruction, instructionType, instructionModifier, speed[i - 1] * 3.6);
         this.instructions.innerHTML = recommendation;
         if (recommendation != '') {
           this.recommendationCounter=0;
@@ -311,21 +372,70 @@ export class MapComponent implements OnInit {
         }
         console.log(`index: ${stepIndex}, point index: ${i}, instruction: ${steps[stepIndex].maneuver.instruction}`)
       }
-
-      i++;
-
+      */
+      // currentPointIndex++;
       let animationReference = requestAnimationFrame(() => {
-        this.animateMarker(i, points, speed, steps)
+        this.animateMarker(currentPointIndex, points, speed, steps)
       });
       this.animationReferences.push(animationReference);
     }, timeoutTime);
     this.timeouts.push(timeout);
+    }
+  }
+
+  animateMarker2(steps: any, speed: any, speedIndex: number) {
+    let currentStepIndex = 0;
+    let currentPointIndex = 0;
+
+    const moveMarker = () => {
+      if (currentStepIndex < steps.length) {
+        const points = steps[currentStepIndex].geometry.coordinates;
+
+        this.marker.setLngLat(points[currentPointIndex]);
+        this.map.flyTo({ center: [points[currentPointIndex][0], points[currentPointIndex][1]] ,   speed: 0.5 });
+
+        currentPointIndex++;
+
+        if (currentPointIndex === points.length) {
+          currentStepIndex++;
+          currentPointIndex = 0;
+        }
+
+        if (currentStepIndex < steps.length) {
+          const speedLimit = steps[currentStepIndex].speed_limit;
+          const durationInHours = steps[currentStepIndex].duration / 3600;
+          const distanceInKilometers = steps[currentStepIndex].distance / 1000;
+          const averageSpeed = (distanceInKilometers / durationInHours) | speedLimit;
+
+          const durationInHours_ = (steps[currentStepIndex - 1]?.duration / 3600);
+          const distanceInKilometers_ = (steps[currentStepIndex - 1]?.distance / 1000);
+          const averagePreviousSpeed = (distanceInKilometers_ / durationInHours_);
+
+          const drivingDir = steps[currentStepIndex]?.maneuver.modifier;
+          const recommendation = this.recommendationSystem(steps[currentStepIndex ], averagePreviousSpeed, averageSpeed);        
+          // if (currentPointIndex === 0) {
+            this.popup.setHTML(`<div><span class="direction-guide-text">${recommendation}</span> 
+              <i class="direction-guide-icon fas fa-arrow-${drivingDir}"></i>
+              </div> <div class="centered-speed colored-speed">${(speed[speedIndex - 1] * 3.6).toFixed(2)} km/h </div>`
+              );
+              console.log(`index: ${currentStepIndex}, point index: ${speedIndex}, instruction: ${steps[currentStepIndex].maneuver.instruction}`)
+          // }
+          speedIndex++;
+          setTimeout(moveMarker, 1000 / speed[speedIndex - 1] * 3.6);
+        }
+      }
+    }
+
+    moveMarker();
   }
 
   searchLocation(steps: any, points: number[]): number {
+    var locationMatches = false;
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
-      const locationMatches = points.every(point => step.maneuver.location.includes(point));
+      if(points) {
+        locationMatches = points.every(point => step.maneuver.location.includes(point));
+      }
       if (locationMatches) {
         return i; // Location exists
       }
@@ -484,39 +594,4 @@ export class MapComponent implements OnInit {
       });
     }
   }
-
-  // addRoute(coords: any, routeID: string, routeColor: string) {
-  //   // If a route is already loaded, remove it
-  //   if (this.map.getSource(routeID)) {
-  //     (this.map.getSource(routeID) as any).setData(coords);
-  //   } else {
-  //     // Add a new layer to the map
-  //     const geojson: any = {
-  //       type: 'Feature',
-  //       properties: {},
-  //       geometry: {
-  //         type: 'LineString',
-  //         coordinates: coords
-  //       }
-  //     };
-
-  //     this.map.addLayer({
-  //       id: routeID,
-  //       type: 'line',
-  //       source: {
-  //         type: 'geojson',
-  //         data: geojson
-  //       },
-  //       layout: {
-  //         'line-join': 'round',
-  //         'line-cap': 'round'
-  //       },
-  //       paint: {
-  //         'line-color': routeColor,
-  //         'line-width': 8,
-  //         'line-opacity': 0.8
-  //       }
-  //     });
-  //   }
-  // }
 }
