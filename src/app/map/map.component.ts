@@ -4,6 +4,7 @@ import * as mapboxgl from 'mapbox-gl';
 //declare let MapboxDirections: any;
 import * as MapboxGeocoder from '@mapbox/mapbox-gl-geocoder';
 import { environment } from 'src/environments/environment';
+import * as turf from '@turf/turf';
 
 @Component({
   selector: 'app-map',
@@ -221,7 +222,7 @@ export class MapComponent implements OnInit {
       .then(data => {
         data  = data.routes[0];
         const route = data.geometry.coordinates;
-        const instructions = data.legs[0].steps.map((step: any) => step.maneuver.instruction);
+        //const instructions = data.legs[0].steps.map((step: any) => step.maneuver.instruction);
         const speed = data.legs[0].annotation.speed;
 
         this.addRoute(route, 'route', '#3887be');
@@ -232,13 +233,16 @@ export class MapComponent implements OnInit {
         }
         console.log(mySet1)
 
-        const points = data.geometry.coordinates;
+        let points = data.geometry.coordinates;
         //this.getMatch(points);
-        const distance = data.legs[0].annotation.distance;
-        const duration = data.legs[0].annotation.duration;
+        // const distance = data.legs[0].annotation.distance;
+        // const duration = data.legs[0].annotation.duration;
 
         this.settingMarker(points[0]);
         this.map.zoomIn();
+        
+        // Add Interpolation Points
+        //points = this.interpolateCoordinates(points);
 
         let i = 1;
         var animationReference = requestAnimationFrame(() => {
@@ -395,29 +399,29 @@ export class MapComponent implements OnInit {
 
     const moveMarker = () => {
       if (currentStepIndex < steps.length) {
-        const points = steps[currentStepIndex].geometry.coordinates;
+        const stepPoints = steps[currentStepIndex].geometry.coordinates;
 
-        this.marker.setLngLat(points[currentPointIndex]);
-        this.map.jumpTo({ center: [points[currentPointIndex][0], points[currentPointIndex][1]]});
+        this.marker.setLngLat(stepPoints[currentPointIndex]);
+        this.map.jumpTo({ center: [stepPoints[currentPointIndex][0], stepPoints[currentPointIndex][1]] });
 
         currentPointIndex++;
 
-        if (currentPointIndex === points.length) {
+        if (currentPointIndex === stepPoints.length) {
           currentStepIndex++;
           currentPointIndex = 0;
         }
 
         if (currentStepIndex < steps.length) {
-          const speedLimit = steps[currentStepIndex].speed_limit;
+          const speedLimit = Number.isNaN(steps[currentStepIndex].speed_limit ?? 0) ? 0 : steps[currentStepIndex].speed_limit;
           const durationInHours = steps[currentStepIndex].duration / 3600;
           const distanceInKilometers = steps[currentStepIndex].distance / 1000;
-          const averageSpeed = (distanceInKilometers / durationInHours) | speedLimit;
+          const averageSpeed = Number.isNaN(distanceInKilometers / durationInHours) ? speedLimit : distanceInKilometers / durationInHours;
 
           const durationInHours_ = (steps[currentStepIndex - 1]?.duration / 3600);
           const distanceInKilometers_ = (steps[currentStepIndex - 1]?.distance / 1000);
-          const averagePreviousSpeed = (distanceInKilometers_ / durationInHours_);
+          const averagePreviousSpeed = Number.isNaN(distanceInKilometers_ / durationInHours_) ? speedLimit : distanceInKilometers_ / durationInHours_;
 
-          const drivingDir = steps[currentStepIndex]?.maneuver.modifier;
+          const drivingDir = this.extractArcs(steps[currentStepIndex]?.maneuver.modifier, ['right', 'left']);
           const currSpeed = speedIndex == 100 ? 0 : (speed[speedIndex - 1] * 3.6).toFixed(2);     
           const recommendation = this.recommendationSystem(steps[currentStepIndex ], averagePreviousSpeed, averageSpeed, Number(currSpeed));  
           const directionIconClass = this.getIconClass(Number(currSpeed), drivingDir)
@@ -438,7 +442,30 @@ export class MapComponent implements OnInit {
     moveMarker();
   }
 
-  getIconClass(currSpeed: number, drivingDir: string) {
+  animateMarker3(coordinates: any, currentPointIndex: number) {
+    var lngLat = coordinates[currentPointIndex];
+
+    // set the new position of the marker
+    this.marker.setLngLat(lngLat);
+    this.map.jumpTo({ center: [lngLat[0], lngLat[1]] });
+
+    // if there are more coordinates, continue animating
+    if (currentPointIndex < coordinates.length - 1) {
+        var start = coordinates[currentPointIndex];
+        var end = coordinates[currentPointIndex + 1];
+
+        var distance = turf.distance(start, end);
+        var duration = distance * 1000; // adjust this to change the animation speed
+
+        // move to the next coordinate after the specified duration
+        setTimeout(() => {
+            this.animateMarker3(coordinates, currentPointIndex + 1);
+        }, duration);
+    }
+
+  }
+
+  getIconClass(currSpeed: number, drivingDir: string|null) {
     if(currSpeed > 70)
       return 'fas fa-tachometer-alt';
     if(currSpeed == 0) 
@@ -612,4 +639,56 @@ export class MapComponent implements OnInit {
       });
     }
   }
+
+  extractArcs(string: string, targetWords: string[]) {
+
+    if(!string) {
+      return null;
+    }
+
+    var extractedSubstrings: string = '';
+    var count = 0;
+
+    for (const word of targetWords) {
+      const wordIndex = string.indexOf(word);
+  
+      if (wordIndex !== -1) {
+        const substring = string.slice(wordIndex, wordIndex + word.length);
+        extractedSubstrings = substring;
+        count++;
+        if (count === 1) {
+          break;
+        }
+      }
+
+      if (count === 1) {
+        break;
+      }
+    }
+  
+    return extractedSubstrings;
+  }
+
+  // function to interpolate additional coordinates between start and end points
+  interpolateCoordinates(coordinates: string | any[]) {
+    let interpolatedCoordinates = [];
+    
+    for (let i = 0; i < coordinates.length - 1; i++) {
+      let start = coordinates[i];
+      let end = coordinates[i + 1];
+
+      let distance = turf.distance(start, end);
+      let numInterpolations = Math.floor(distance * 10); // adjust this factor to control the smoothness
+
+      for (let j = 0; j <= numInterpolations; j++) {
+          let fraction = j / numInterpolations;
+          let interpolatedLng = start[0] + (end[0] - start[0]) * fraction;
+          let interpolatedLat = start[1] + (end[1] - start[1]) * fraction;
+          interpolatedCoordinates.push([interpolatedLng, interpolatedLat]);
+      }
+    }
+    
+    return interpolatedCoordinates;
+  }
+  
 }
