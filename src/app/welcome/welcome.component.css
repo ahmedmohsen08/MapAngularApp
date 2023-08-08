@@ -1,0 +1,40 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-family: 'Arial', sans-serif;
+    background-color: #fff;
+}
+
+h1 {
+    color: #0033a1; /* Luxoft's dark blue color */
+    font-weight: 600;
+}
+
+p {
+    color: #4d4d4d; /* A neutral dark gray for text */
+    max-width: 600px;
+    text-align: center;
+}
+
+button {
+    margin-top: 20px;
+    padding: 10px 20px;
+    background-color: #0033a1; /* Luxoft's dark blue color */
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease-in-out;
+}
+
+button:hover {
+    background-color: #0052cc; /* A slightly lighter blue for hover state */
+}
+
+.logo {
+    width: 200px; /* Adjust this value as per your requirement */
+    margin-bottom: 20px;
+}

@@ -19,6 +19,8 @@
     "@angular/platform-browser-dynamic": "^16.0.0",
     "@angular/router": "^16.0.0",
     "@mapbox/mapbox-gl-geocoder": "^5.0.1",
+    "@turf/turf": "^6.5.0",
+    "@types/turf": "^3.5.32",
     "mapbox-gl": "^2.15.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
