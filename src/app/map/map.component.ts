@@ -279,11 +279,17 @@ export class MapComponent implements OnInit {
   }
 
 
-  recommendationSystem(step: any, averagePreviousSpeed: number, averageCurrentSpeed: number): string {
+  recommendationSystem(step: any, averagePreviousSpeed: number, averageCurrentSpeed: number, currentSpeed: number): string {
     const instruction = step.maneuver.instruction;
     const instructionType = step.maneuver.type;
     const instructionModifier = step.maneuver.modifier;
     
+    if(currentSpeed == 0)
+      return 'traffic light';
+
+    if(currentSpeed > 70)
+      return 'reaching max speed';
+
     if (averagePreviousSpeed > averageCurrentSpeed)
       return `Slow speed down ..., ${instruction}`;
 
@@ -293,95 +299,95 @@ export class MapComponent implements OnInit {
     return instruction;
   }
 
-  animateMarker(currentPointIndex: number, points: number[][], speed: number[], steps: any) {
-    this.instructions = document.getElementById('instructions')! || {};
-    const currentPos = points[currentPointIndex];
-    const pointAhead = points[currentPointIndex + 5];
-    // let timeoutTime = this.calculateDelay(speed[i]);
-    let timeoutTime = 1000 / speed[currentPointIndex] * 3.6
+//   animateMarker(currentPointIndex: number, points: number[][], speed: number[], steps: any) {
+//     this.instructions = document.getElementById('instructions')! || {};
+//     const currentPos = points[currentPointIndex];
+//     const pointAhead = points[currentPointIndex + 5];
+//     // let timeoutTime = this.calculateDelay(speed[i]);
+//     let timeoutTime = 1000 / speed[currentPointIndex] * 3.6
     
-    if(currentPos) {
-      let timeout = setTimeout(() => {
-        const points = steps[this.currentStepIndex]?.geometry.coordinates;
-        const drivingDir = steps[this.currentStepIndex]?.maneuver.modifier;
+//     if(currentPos) {
+//       let timeout = setTimeout(() => {
+//         const points = steps[this.currentStepIndex]?.geometry.coordinates;
+//         const drivingDir = steps[this.currentStepIndex]?.maneuver.modifier;
 
-          this.marker.setLngLat(points[currentPointIndex]).addTo(this.map);
-          this.map.flyTo({ center: [currentPos[0], currentPos[1]] ,   speed: 0.8 });
-          currentPointIndex++;
+//           this.marker.setLngLat(points[currentPointIndex]).addTo(this.map);
+//           this.map.flyTo({ center: [currentPos[0], currentPos[1]] ,   speed: 0.8 });
+//           currentPointIndex++;
 
-          if (currentPointIndex === points.length) {
-            this.currentStepIndex++;
-            currentPointIndex = 0;
-          }
+//           if (currentPointIndex === points.length) {
+//             this.currentStepIndex++;
+//             currentPointIndex = 0;
+//           }
 
-          const durationInHours = (steps[this.currentStepIndex]?.duration / 3600) | 0;
-          const distanceInKilometers = (steps[this.currentStepIndex]?.distance / 1000) | 0;
-          const durationInHours_ = (steps[this.currentStepIndex - 1]?.duration / 3600) | 0;
-          const distanceInKilometers_ = (steps[this.currentStepIndex - 1]?.distance / 1000) | 0;
+//           const durationInHours = (steps[this.currentStepIndex]?.duration / 3600) | 0;
+//           const distanceInKilometers = (steps[this.currentStepIndex]?.distance / 1000) | 0;
+//           const durationInHours_ = (steps[this.currentStepIndex - 1]?.duration / 3600) | 0;
+//           const distanceInKilometers_ = (steps[this.currentStepIndex - 1]?.distance / 1000) | 0;
 
-          const averageCurrentSpeed = (distanceInKilometers / durationInHours) | 0;
-          const averagePreviousSpeed = (distanceInKilometers_ / durationInHours_) | 0;
+//           const averageCurrentSpeed = (distanceInKilometers / durationInHours) | 0;
+//           const averagePreviousSpeed = (distanceInKilometers_ / durationInHours_) | 0;
 
-          const recommendation = this.recommendationSystem(steps[this.currentStepIndex ], averagePreviousSpeed, averageCurrentSpeed);        
+//           const recommendation = this.recommendationSystem(steps[this.currentStepIndex ], averagePreviousSpeed, averageCurrentSpeed);        
 
-          // this.popup.setHTML(`</div> <div class="centered-speed colored-speed">${averageCurrentSpeed.toFixed(2)} km/h </div>`);
+//           // this.popup.setHTML(`</div> <div class="centered-speed colored-speed">${averageCurrentSpeed.toFixed(2)} km/h </div>`);
 
-          if (this.currentStepIndex < steps.length) {
-            if (currentPointIndex === 0) {
-              const speedLimit = steps[this.currentStepIndex].speed_limit;
-              this.popup.setHTML(`<div><span class="direction-guide-text">${recommendation}</span>  <i class="direction-guide-icon fas fa-arrow-${drivingDir}"></i> </div> <div class="centered-speed colored-speed">${speedLimit.toFixed(2)} km/h </div>`);
-            } 
-          }
+//           if (this.currentStepIndex < steps.length) {
+//             if (currentPointIndex === 0) {
+//               const speedLimit = steps[this.currentStepIndex].speed_limit;
+//               this.popup.setHTML(`<div><span class="direction-guide-text">${recommendation}</span>  <i class="direction-guide-icon fas fa-arrow-${drivingDir}"></i> </div> <div class="centered-speed colored-speed">${speedLimit.toFixed(2)} km/h </div>`);
+//             } 
+//           }
 
-/*
-        this.marker.setLngLat([currentPos[0], currentPos[1]]).addTo(this.map);
-        this.map.flyTo({ center: [currentPos[0], currentPos[1]] ,   speed: 0.8 });
+// /*
+//         this.marker.setLngLat([currentPos[0], currentPos[1]]).addTo(this.map);
+//         this.map.flyTo({ center: [currentPos[0], currentPos[1]] ,   speed: 0.8 });
   
-        const drivingDir = steps[this.currentStepIndex].maneuver.modifier;
-        const recommendation = this.recommendationSystem(steps[this.currentStepIndex ], speed[currentPointIndex - 1] * 3.6);        
+//         const drivingDir = steps[this.currentStepIndex].maneuver.modifier;
+//         const recommendation = this.recommendationSystem(steps[this.currentStepIndex ], speed[currentPointIndex - 1] * 3.6);        
   
-        if (this.currentStepIndex != 0 && this.currentStepIndex < 30)
-          this.currentStepIndex ++;
-        if (this.currentStepIndex == 5) {
-          this.popup.setHTML(`<div class="centered-speed colored-speed">${Math.floor(speed[currentPointIndex - 1] * 3.6)} km/h </div>`);
-          this.currentStepIndex = 0;
-        }
+//         if (this.currentStepIndex != 0 && this.currentStepIndex < 30)
+//           this.currentStepIndex ++;
+//         if (this.currentStepIndex == 5) {
+//           this.popup.setHTML(`<div class="centered-speed colored-speed">${Math.floor(speed[currentPointIndex - 1] * 3.6)} km/h </div>`);
+//           this.currentStepIndex = 0;
+//         }
 
-        if (this.searchLocation(steps, pointAhead) != -1) {
-          this.popup.setHTML(`<div><span class="direction-guide-text">${recommendation}</span>  <i class="direction-guide-icon fas fa-arrow-${drivingDir}"></i> </div> <div class="centered-speed colored-speed">${Math.floor(speed[currentPointIndex - 1] * 3.6)} km/h </div>`);
-          if (recommendation != '') {
-            this.currentStepIndex = 0;
-            this.currentStepIndex ++;
-          }
+//         if (this.searchLocation(steps, pointAhead) != -1) {
+//           this.popup.setHTML(`<div><span class="direction-guide-text">${recommendation}</span>  <i class="direction-guide-icon fas fa-arrow-${drivingDir}"></i> </div> <div class="centered-speed colored-speed">${Math.floor(speed[currentPointIndex - 1] * 3.6)} km/h </div>`);
+//           if (recommendation != '') {
+//             this.currentStepIndex = 0;
+//             this.currentStepIndex ++;
+//           }
 
-        } else {
-          this.popup.setHTML(`<div class="centered-speed colored-speed">${Math.floor(speed[currentPointIndex - 1] * 3.6)} km/h </div>`);
-        }
-*/
-      /*
-      let stepIndex = this.searchLocation(steps, pointAhead);
-      if (stepIndex != -1) {
-        const instruction = steps[stepIndex].maneuver.instruction;
-        const instructionType = steps[stepIndex].maneuver.type;
-        const instructionModifier = steps[stepIndex].maneuver.modifier;
-        const recommendation = this.recommendationSystem(point, pointAhead, instruction, instructionType, instructionModifier, speed[i - 1] * 3.6);
-        this.instructions.innerHTML = recommendation;
-        if (recommendation != '') {
-          this.recommendationCounter=0;
-          this.recommendationCounter++;
-        }
-        console.log(`index: ${stepIndex}, point index: ${i}, instruction: ${steps[stepIndex].maneuver.instruction}`)
-      }
-      */
-      // currentPointIndex++;
-      let animationReference = requestAnimationFrame(() => {
-        this.animateMarker(currentPointIndex, points, speed, steps)
-      });
-      this.animationReferences.push(animationReference);
-    }, timeoutTime);
-    this.timeouts.push(timeout);
-    }
-  }
+//         } else {
+//           this.popup.setHTML(`<div class="centered-speed colored-speed">${Math.floor(speed[currentPointIndex - 1] * 3.6)} km/h </div>`);
+//         }
+// */
+//       /*
+//       let stepIndex = this.searchLocation(steps, pointAhead);
+//       if (stepIndex != -1) {
+//         const instruction = steps[stepIndex].maneuver.instruction;
+//         const instructionType = steps[stepIndex].maneuver.type;
+//         const instructionModifier = steps[stepIndex].maneuver.modifier;
+//         const recommendation = this.recommendationSystem(point, pointAhead, instruction, instructionType, instructionModifier, speed[i - 1] * 3.6);
+//         this.instructions.innerHTML = recommendation;
+//         if (recommendation != '') {
+//           this.recommendationCounter=0;
+//           this.recommendationCounter++;
+//         }
+//         console.log(`index: ${stepIndex}, point index: ${i}, instruction: ${steps[stepIndex].maneuver.instruction}`)
+//       }
+//       */
+//       // currentPointIndex++;
+//       let animationReference = requestAnimationFrame(() => {
+//         this.animateMarker(currentPointIndex, points, speed, steps)
+//       });
+//       this.animationReferences.push(animationReference);
+//     }, timeoutTime);
+//     this.timeouts.push(timeout);
+//     }
+//   }
 
   animateMarker2(steps: any, speed: any, speedIndex: number) {
     let currentStepIndex = 0;
@@ -392,7 +398,7 @@ export class MapComponent implements OnInit {
         const points = steps[currentStepIndex].geometry.coordinates;
 
         this.marker.setLngLat(points[currentPointIndex]);
-        this.map.flyTo({ center: [points[currentPointIndex][0], points[currentPointIndex][1]] ,   speed: 0.5 });
+        this.map.jumpTo({ center: [points[currentPointIndex][0], points[currentPointIndex][1]]});
 
         currentPointIndex++;
 
@@ -412,16 +418,19 @@ export class MapComponent implements OnInit {
           const averagePreviousSpeed = (distanceInKilometers_ / durationInHours_);
 
           const drivingDir = steps[currentStepIndex]?.maneuver.modifier;
-          const recommendation = this.recommendationSystem(steps[currentStepIndex ], averagePreviousSpeed, averageSpeed);        
+          const currSpeed = speedIndex == 100 ? 0 : (speed[speedIndex - 1] * 3.6).toFixed(2);     
+          const recommendation = this.recommendationSystem(steps[currentStepIndex ], averagePreviousSpeed, averageSpeed, Number(currSpeed));  
+          const directionIconClass = this.getIconClass(Number(currSpeed), drivingDir)
           // if (currentPointIndex === 0) {
             this.popup.setHTML(`<div><span class="direction-guide-text">${recommendation}</span> 
-              <i class="direction-guide-icon fas fa-arrow-${drivingDir}"></i>
-              </div> <div class="centered-speed colored-speed">${(speed[speedIndex - 1] * 3.6).toFixed(2)} km/h </div>`
+              <i class="${directionIconClass}" style='font-size:32px'></i>
+              </div> <div class="centered-speed colored-speed">${currSpeed} km/h </div>`
               );
-              console.log(`index: ${currentStepIndex}, point index: ${speedIndex}, instruction: ${steps[currentStepIndex].maneuver.instruction}`)
+              //console.log(`index: ${currentStepIndex}, point index: ${speedIndex}, instruction: ${steps[currentStepIndex].maneuver.instruction}`)
           // }
           speedIndex++;
-          setTimeout(moveMarker, 1000 / speed[speedIndex - 1] * 3.6);
+          const timeout = currSpeed == 0 ? 4000 : 1000 / speed[speedIndex - 1] * 3.6 * 0.6;
+          setTimeout(moveMarker, timeout);
         }
       }
     }
@@ -429,19 +438,28 @@ export class MapComponent implements OnInit {
     moveMarker();
   }
 
-  searchLocation(steps: any, points: number[]): number {
-    var locationMatches = false;
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
-      if(points) {
-        locationMatches = points.every(point => step.maneuver.location.includes(point));
-      }
-      if (locationMatches) {
-        return i; // Location exists
-      }
-    }
-    return -1; // Location does not exist
+  getIconClass(currSpeed: number, drivingDir: string) {
+    if(currSpeed > 70)
+      return 'fas fa-tachometer-alt';
+    if(currSpeed == 0) 
+      return 'fas fa-traffic-light';
+    
+    return  `direction-guide-icon fas fa-arrow-${drivingDir}`;
   }
+
+  // searchLocation(steps: any, points: number[]): number {
+  //   var locationMatches = false;
+  //   for (let i = 0; i < steps.length; i++) {
+  //     const step = steps[i];
+  //     if(points) {
+  //       locationMatches = points.every(point => step.maneuver.location.includes(point));
+  //     }
+  //     if (locationMatches) {
+  //       return i; // Location exists
+  //     }
+  //   }
+  //   return -1; // Location does not exist
+  // }
 
   settingMarker(point: number[]) {
     const lngLatPosition: mapboxgl.LngLatLike = [point[0], point[1]];
@@ -475,16 +493,16 @@ export class MapComponent implements OnInit {
     }
   }
 
-  calculateDelay(speed: number): number {
-    if (speed * 3.6 >= 60)
-      return 60;
-    // if(speed < 70 && speed > 50)
-    //   return 0.;
-    if (speed * 3.6 < 60)
-      return 120;
+  // calculateDelay(speed: number): number {
+  //   if (speed * 3.6 >= 60)
+  //     return 60;
+  //   // if(speed < 70 && speed > 50)
+  //   //   return 0.;
+  //   if (speed * 3.6 < 60)
+  //     return 120;
 
-    return 120;
-  }
+  //   return 120;
+  // }
 
   // transition(result: number[], position: number[]) {
   //   this.i = 0;
