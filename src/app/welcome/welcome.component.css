@@ -37,4 +37,5 @@ button:hover {
 .logo {
     width: 200px; /* Adjust this value as per your requirement */
     margin-bottom: 20px;
+    content:url("../../assets/luxoft-logo.png");
 }
