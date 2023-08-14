@@ -5,7 +5,7 @@ import * as mapboxgl from 'mapbox-gl';
 import * as MapboxGeocoder from '@mapbox/mapbox-gl-geocoder';
 import { environment } from 'src/environments/environment';
 import * as turf from '@turf/turf';
-import { cloneDeep } from 'lodash'; 
+import { cloneDeep } from 'lodash';
 
 @Component({
   selector: 'app-map',
@@ -33,6 +33,7 @@ export class MapComponent implements OnInit {
   currentStepIndex = 0;
   currentStepGeometryIndex = 0;
   prevoiusCoord: number[];
+  trafficLightMarker!: mapboxgl.Marker;
 
   constructor() {
     this.numDeltas = 100;
@@ -121,17 +122,17 @@ export class MapComponent implements OnInit {
       { method: 'GET' })
       .then(response => response.json())
       .then(data => {
-        data  = data.routes[0];
+        data = data.routes[0];
         const route = data.geometry.coordinates;
         //const instructions = data.legs[0].steps.map((step: any) => step.maneuver.instruction);
         const speed = data.legs[0].annotation.speed;
 
-        
+
         this.addRoute(route, 'route', '#3887be');
         const steps = data.legs[0].steps;
         let count = 0;
-        steps.forEach((step:any) => {
-          count+=step.geometry.coordinates.length
+        steps.forEach((step: any) => {
+          count += step.geometry.coordinates.length
         });
         console.log(count);
         // steps.forEach((step) => {
@@ -141,8 +142,8 @@ export class MapComponent implements OnInit {
         // });
         this.interpolateCoordinates(steps)
         count = 0;
-        steps.forEach((step:any) => {
-          count+=step.geometry.coordinates.length
+        steps.forEach((step: any) => {
+          count += step.geometry.coordinates.length
         });
         console.log(count);
         // const mySet1 = new Set();
@@ -156,9 +157,12 @@ export class MapComponent implements OnInit {
         // const distance = data.legs[0].annotation.distance;
         // const duration = data.legs[0].annotation.duration;
 
+        points = steps.flatMap((step: any) => step.geometry.coordinates);
+
         this.settingMarker(points[0]);
+        this.settingTrafficLightMarker(points[150]);
         this.map.zoomIn();
-        
+
         // Add Interpolation Points
         //points = this.interpolateCoordinates(points);
 
@@ -172,15 +176,15 @@ export class MapComponent implements OnInit {
   }
 
 
-  recommendationSystem(step: any, averagePreviousSpeed: number, averageCurrentSpeed: number, currentSpeed: number): string {
+  recommendationSystem(step: any, averagePreviousSpeed: number, averageCurrentSpeed: number): string {
     const instruction = step.maneuver.instruction;
     // const instructionType = step.maneuver.type;
     // const instructionModifier = step.maneuver.modifier;
-    
-    if(currentSpeed == 0)
+
+    if (averageCurrentSpeed == 0)
       return 'traffic light';
 
-    if(currentSpeed > 70)
+    if (averageCurrentSpeed > 70)
       return 'reaching max speed';
 
     if (averagePreviousSpeed > averageCurrentSpeed)
@@ -195,11 +199,12 @@ export class MapComponent implements OnInit {
   animateMarker2(steps: any, speed: any, speedIndex: number) {
     let currentStepIndex = 0;
     let currentPointIndex = 0;
+    let currSpeedList:number[]=[];
 
     const moveMarker = () => {
       if (currentStepIndex < steps.length) {
         const stepPoints = steps[currentStepIndex].geometry.coordinates;
-        
+
         this.marker.setLngLat(stepPoints[currentPointIndex]);
         this.map.jumpTo({ center: [stepPoints[currentPointIndex][0], stepPoints[currentPointIndex][1]] });
 
@@ -216,27 +221,31 @@ export class MapComponent implements OnInit {
           const distanceInKilometers = steps[currentStepIndex].distance / 1000;
           const averageSpeed = distanceInKilometers / durationInHours;
 
-          const durationInHours_ = (steps[currentStepIndex - 1]?.duration / 3600);
-          const distanceInKilometers_ = (steps[currentStepIndex - 1]?.distance / 1000);
-          const averagePreviousSpeed = distanceInKilometers_ / durationInHours_;
+          // const durationInHours_ = (steps[currentStepIndex - 1]?.duration / 3600);
+          // const distanceInKilometers_ = (steps[currentStepIndex - 1]?.distance / 1000);
+          // const averagePreviousSpeed = distanceInKilometers_ / durationInHours_;
 
           // const averageSpeed = this.getApproximatedSpeed(speed[speedIndex - 1] * 3.6);
           // const averagePreviousSpeed = this.getApproximatedSpeed(speed[speedIndex - 2] * 3.6);
 
 
           const drivingDir = this.extractArcs(steps[currentStepIndex]?.maneuver.modifier, ['right', 'left']);
-          const currSpeed = speedIndex == 150 ? 0 : this.getApproximatedSpeed(averageSpeed);     
-          const recommendation = this.recommendationSystem(steps[currentStepIndex], averagePreviousSpeed, averageSpeed, currSpeed);  
-          const directionIconClass = this.getIconClass(currSpeed, drivingDir)
+          let currAvgSpeed = this.getCurrSpeed(averageSpeed,speedIndex,steps[currentStepIndex].maneuver.type,currentPointIndex);
+          let previousAvgSpeed = currSpeedList.length == 0 ? 0 : currSpeedList[currSpeedList.length-1];
+          if(currentPointIndex == 0)
+            currSpeedList.push(currAvgSpeed);
+
+          const recommendation = this.recommendationSystem(steps[currentStepIndex], previousAvgSpeed, currAvgSpeed);
+          const directionIconClass = this.getIconClass(currAvgSpeed, drivingDir);
           // if (currentPointIndex === 0) {
-            this.popup.setHTML(`<div><span class="direction-guide-text">${recommendation}</span> 
+          this.popup.setHTML(`<div><span class="direction-guide-text">${recommendation}</span> 
               <i class="${directionIconClass}" style='font-size:32px'></i>
-              </div> <div class="centered-speed colored-speed">${Number.isNaN(currSpeed)?0:currSpeed} km/h </div>`
-              );
-              //console.log(`index: ${currentStepIndex}, point index: ${speedIndex}, instruction: ${steps[currentStepIndex].maneuver.instruction}`)
+              </div> <div class="centered-speed colored-speed">${Number.isNaN(currAvgSpeed) ? 0 : currAvgSpeed} km/h </div>`
+          );
+          //console.log(`index: ${currentStepIndex}, point index: ${speedIndex}, instruction: ${steps[currentStepIndex].maneuver.instruction}`)
           // }
           speedIndex++;
-          const timeoutDuration = this.getTimeout(currSpeed);
+          const timeoutDuration = this.getTimeout(currAvgSpeed);
           let timeout = setTimeout(moveMarker, timeoutDuration);
           this.timeouts.push(timeout);
         }
@@ -246,45 +255,76 @@ export class MapComponent implements OnInit {
     moveMarker();
   }
 
-  private getTimeout(currSpeed: number) {
-    if(currSpeed == 0) 
-      return 4000 ;
-    if(currSpeed>0 && currSpeed<=50)
-      return 4000 / currSpeed;
-    if(currSpeed>50)
-      return 5000 / currSpeed;
+  getCurrSpeed(averageSpeed: number, speedIndex: number, type: any, currentPointIndex: number) :number{
+    let approximatedSpeed = this.getApproximatedSpeed(averageSpeed); 
+    let  trafficLightSpeed = this.getSpeedforTrafficLight(approximatedSpeed, speedIndex);
+    let  currSpeed = this.speedAdjustmentforManeuver(trafficLightSpeed,type,currentPointIndex);
 
-    return 4000 / currSpeed; 
+    return currSpeed;
   }
 
-  getApproximatedSpeed(speed: number):number {
-    if(speed>0&&speed<=10)
+  speedAdjustmentforManeuver(currSpeed: number, type: string, pointIndex:number): number {
+    if((type === 'roundabout' || type === 'rotary') && pointIndex<=18)
+      return Math.floor(currSpeed*0.7);
+    return currSpeed;
+  }
+
+  getSpeedforTrafficLight(speed: number, speedIndex: number): number {
+    if (speedIndex + 5 == 150)
+      return Math.floor(speed * 0.8);
+    if (speedIndex + 4 == 150)
+      return Math.floor(speed * 0.6);
+    if (speedIndex + 3 == 150)
+      return Math.floor(speed * 0.5);
+    if (speedIndex + 2 == 150)
+      return Math.floor(speed * 0.4);
+    if (speedIndex + 1 == 150)
+      return Math.floor(speed * 0.2);
+    if (speedIndex == 150)
+      return 0;
+
+    return speed;
+  }
+
+  private getTimeout(currSpeed: number) {
+    if (currSpeed == 0)
+      return 4000;
+    if (currSpeed > 0 && currSpeed <= 50)
+      return 2000 / currSpeed;
+    if (currSpeed > 50)
+      return 3000 / currSpeed;
+
+    return 5000 / currSpeed;
+  }
+
+  getApproximatedSpeed(speed: number): number {
+    if (speed > 0 && speed <= 10)
       return 8;
-    if(speed>10&&speed<=15)
+    if (speed > 10 && speed <= 15)
       return 12;
-    if(speed>15&&speed<=20)
+    if (speed > 15 && speed <= 20)
       return 17;
-    if(speed>20&&speed<=25)
+    if (speed > 20 && speed <= 25)
       return 23;
-    if(speed>25&&speed<=30)
+    if (speed > 25 && speed <= 30)
       return 27;
-    if(speed>30&&speed<=50)
+    if (speed > 30 && speed <= 50)
       return 42;
-    if(speed>50&&speed<=70)
+    if (speed > 50 && speed <= 70)
       return 64;
-    if(speed>70)
+    if (speed > 70)
       return 80;
 
     return speed;
   }
 
-  getIconClass(currSpeed: number, drivingDir: string|null) {
-    if(currSpeed > 70)
+  getIconClass(currSpeed: number, drivingDir: string | null) {
+    if (currSpeed > 70)
       return 'fas fa-tachometer-alt';
-    if(currSpeed == 0) 
+    if (currSpeed == 0)
       return 'fas fa-traffic-light';
-    
-    return  `direction-guide-icon fas fa-arrow-${drivingDir}`;
+
+    return `direction-guide-icon fas fa-arrow-${drivingDir}`;
   }
 
   settingMarker(point: number[]) {
@@ -304,10 +344,20 @@ export class MapComponent implements OnInit {
     this.marker.togglePopup();
   }
 
+  settingTrafficLightMarker(point: number[]) {
+    const lngLatPosition: mapboxgl.LngLatLike = [point[0], point[1]];
+    const el = document.createElement('div');
+    el.className = 'traffic-light';
+    this.trafficLightMarker = new mapboxgl.Marker(el).setLngLat(lngLatPosition).addTo(this.map);
+  }
+
   mapClear() {
     //remove marker if exists
     if (this.marker != undefined)
       this.marker.remove();
+
+    if (this.trafficLightMarker != undefined)
+      this.trafficLightMarker.remove();
 
     //clear timeouts and animation reference arrays
     this.clearAnimations();
@@ -365,7 +415,7 @@ export class MapComponent implements OnInit {
 
   extractArcs(string: string, targetWords: string[]) {
 
-    if(!string) {
+    if (!string) {
       return null;
     }
 
@@ -374,7 +424,7 @@ export class MapComponent implements OnInit {
 
     for (const word of targetWords) {
       const wordIndex = string.indexOf(word);
-  
+
       if (wordIndex !== -1) {
         const substring = string.slice(wordIndex, wordIndex + word.length);
         extractedSubstrings = substring;
@@ -388,7 +438,7 @@ export class MapComponent implements OnInit {
         break;
       }
     }
-  
+
     return extractedSubstrings;
   }
 
@@ -399,7 +449,7 @@ export class MapComponent implements OnInit {
       let coordinatesClone = cloneDeep(coordinates);
 
       let interpolatedCoordinates = [];
-      
+
       for (let i = 0; i < coordinates.length - 1; i++) {
         let start = coordinates[i];
         let end = coordinates[i + 1];
@@ -409,16 +459,16 @@ export class MapComponent implements OnInit {
 
         //interpolatedCoordinates.push(start);
         for (let j = 1; j < numInterpolations; j++) {
-            let fraction = j / numInterpolations;
-            let interpolatedLng = start[0] + (end[0] - start[0]) * fraction;
-            let interpolatedLat = start[1] + (end[1] - start[1]) * fraction;
-            //interpolatedCoordinates.push([interpolatedLng, interpolatedLat]);
-            coordinatesClone.splice(i+addedPointsCount+1,0,[interpolatedLng, interpolatedLat]);
-            addedPointsCount++;
+          let fraction = j / numInterpolations;
+          let interpolatedLng = start[0] + (end[0] - start[0]) * fraction;
+          let interpolatedLat = start[1] + (end[1] - start[1]) * fraction;
+          //interpolatedCoordinates.push([interpolatedLng, interpolatedLat]);
+          coordinatesClone.splice(i + addedPointsCount + 1, 0, [interpolatedLng, interpolatedLat]);
+          addedPointsCount++;
         }
         //interpolatedCoordinates.push(end);
       }
-      step.geometry.coordinates=coordinatesClone;
+      step.geometry.coordinates = coordinatesClone;
     });
   }
 }
