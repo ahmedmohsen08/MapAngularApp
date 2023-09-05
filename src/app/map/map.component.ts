@@ -135,41 +135,23 @@ export class MapComponent implements OnInit {
           count += step.geometry.coordinates.length
         });
         console.log(count);
-        // steps.forEach((step) => {
-        //   const coordinates = step.geometry.coordinates;
-        //   const stepCoordinates = coordinates.length;
-        //   const totalDistance = coordinates.reduce((acc: any, currentValue: any) => acc + currentValue, 0);    
-        // });
+
         this.interpolateCoordinates(steps)
         count = 0;
         steps.forEach((step: any) => {
           count += step.geometry.coordinates.length
         });
         console.log(count);
-        // const mySet1 = new Set();
-        // for (let step of steps) {
-        //   mySet1.add(step.maneuver.type)
-        // }
-        // console.log(mySet1)
-
         let points = data.geometry.coordinates;
-        //this.getMatch(points);
-        // const distance = data.legs[0].annotation.distance;
-        // const duration = data.legs[0].annotation.duration;
-
         points = steps.flatMap((step: any) => step.geometry.coordinates);
 
         this.settingMarker(points[0]);
         this.settingTrafficLightMarker(points[150]);
         this.map.zoomIn();
 
-        // Add Interpolation Points
-        //points = this.interpolateCoordinates(points);
-
         let i = 1;
         var animationReference = requestAnimationFrame(() => {
-          // this.animateMarker(i, points, speed, steps)
-          this.animateMarker2(steps, speed, i)
+          this.animateMarker(steps, speed, i)
         });
         this.animationReferences.push(animationReference);
       });
@@ -178,9 +160,7 @@ export class MapComponent implements OnInit {
 
   recommendationSystem(step: any, averagePreviousSpeed: number, averageCurrentSpeed: number): string {
     const instruction = step.maneuver.instruction;
-    // const instructionType = step.maneuver.type;
-    // const instructionModifier = step.maneuver.modifier;
-
+    
     if (averageCurrentSpeed == 0)
       return 'traffic light';
 
@@ -196,7 +176,7 @@ export class MapComponent implements OnInit {
     return instruction;
   }
 
-  animateMarker2(steps: any, speed: any, speedIndex: number) {
+  animateMarker(steps: any, speed: any, speedIndex: number) {
     let currentStepIndex = 0;
     let currentPointIndex = 0;
     let currSpeedList:number[]=[];
